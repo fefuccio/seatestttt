@@ -1,3 +1,4 @@
+# scripts/settings_window.py
 from __future__ import annotations
 
 import math
@@ -58,57 +59,40 @@ _SVG_FILES = {
 }
 _SVG_CACHE: dict = {}
 
-
 def _load_svg_silhouette(name: str, size: int):
-    """Load an SVG icon as a tightly cropped white silhouette, cached."""
     size = max(1, int(size))
     key = f"{name}_{size}"
     if key in _SVG_CACHE:
         return _SVG_CACHE[key]
-
     filename = _SVG_FILES.get(name)
     if filename is None:
         _SVG_CACHE[key] = None
         return None
-
     filepath = os.path.join(bundled_resource("ui"), filename)
     if not os.path.exists(filepath):
         _SVG_CACHE[key] = None
         return None
-
     try:
         from PySide6.QtSvg import QSvgRenderer
         if QSvgRenderer is None:
             _SVG_CACHE[key] = None
             return None
-
         with open(filepath, "r", encoding="utf-8") as f:
             svg_data = f.read()
-
-        svg_data = re.sub(
-            r'fill="(?!none)[^"]*"', 'fill="#FFFFFF"',
-            svg_data, flags=re.IGNORECASE,
-        )
-        svg_data = re.sub(
-            r'fill:\s*(?!none)#?[0-9a-fA-F]+', 'fill:#FFFFFF',
-            svg_data, flags=re.IGNORECASE,
-        )
-
+        svg_data = re.sub(r'fill="(?!none)[^"]*"', 'fill="#FFFFFF"', svg_data, flags=re.IGNORECASE)
+        svg_data = re.sub(r'fill:\s*(?!none)#?[0-9a-fA-F]+', 'fill:#FFFFFF', svg_data, flags=re.IGNORECASE)
         renderer = QSvgRenderer(QByteArray(svg_data.encode("utf-8")))
         if not renderer.isValid():
             _SVG_CACHE[key] = None
             return None
-
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-
         bounds = QRectF(0, 0, size, size)
         renderer.render(painter, bounds)
         painter.end()
-
         image = pixmap.toImage()
         x_min = image.width()
         y_min = image.height()
@@ -121,36 +105,23 @@ def _load_svg_silhouette(name: str, size: int):
                     y_min = min(y_min, y)
                     x_max = max(x_max, x)
                     y_max = max(y_max, y)
-
         if x_max >= 0:
-            cropped = pixmap.copy(
-                x_min, y_min,
-                x_max - x_min + 1, y_max - y_min + 1,
-            )
+            cropped = pixmap.copy(x_min, y_min, x_max - x_min + 1, y_max - y_min + 1)
             _SVG_CACHE[key] = cropped
             return cropped
-
-        # SVG rendered no visible content — cache None
-        # so _draw_sidebar_glyph falls back to _draw_painted_glyph
         _SVG_CACHE[key] = None
         return None
-
     except Exception:
         _SVG_CACHE[key] = None
         return None
 
-
 def _lerp_color(a: QColor, b: QColor, t: float) -> QColor:
     t = max(0.0, min(1.0, t))
-    return QColor(
-        int(a.red() + (b.red() - a.red()) * t),
-        int(a.green() + (b.green() - a.green()) * t),
-        int(a.blue() + (b.blue() - a.blue()) * t),
-    )
-
+    return QColor(int(a.red() + (b.red() - a.red()) * t),
+                  int(a.green() + (b.green() - a.green()) * t),
+                  int(a.blue() + (b.blue() - a.blue()) * t))
 
 def _draw_painted_glyph(painter: QPainter, name: str, rect: QRectF, color: QColor) -> None:
-    """Draw a tiny fallback line icon."""
     painter.save()
     pen = QPen(color)
     pen.setWidthF(1.6)
@@ -159,11 +130,9 @@ def _draw_painted_glyph(painter: QPainter, name: str, rect: QRectF, color: QColo
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
     cx = rect.center().x()
     cy = rect.center().y()
     s = rect.width() / 2.0
-
     if name == "General":
         r = s * 0.55
         painter.drawEllipse(QPointF(cx, cy), r, r)
@@ -175,69 +144,38 @@ def _draw_painted_glyph(painter: QPainter, name: str, rect: QRectF, color: QColo
             x2 = cx + math.cos(angle) * (r + 4.0)
             y2 = cy + math.sin(angle) * (r + 4.0)
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
-
     elif name == "Alerts":
         path = QPainterPath()
         path.moveTo(cx - s * 0.55, cy + s * 0.35)
         path.lineTo(cx - s * 0.55, cy)
-        path.arcTo(
-            QRectF(cx - s * 0.55, cy - s * 0.85, s * 1.1, s * 1.1),
-            180, -180,
-        )
+        path.arcTo(QRectF(cx - s * 0.55, cy - s * 0.85, s * 1.1, s * 1.1), 180, -180)
         path.lineTo(cx + s * 0.55, cy + s * 0.35)
         path.lineTo(cx - s * 0.55, cy + s * 0.35)
         painter.drawPath(path)
-        painter.drawLine(
-            QPointF(cx - s * 0.28, cy + s * 0.62),
-            QPointF(cx + s * 0.28, cy + s * 0.62),
-        )
-
+        painter.drawLine(QPointF(cx - s * 0.28, cy + s * 0.62), QPointF(cx + s * 0.28, cy + s * 0.62))
     elif name == "Bait":
         path = QPainterPath()
         path.moveTo(cx - s * 0.7, cy)
-        path.cubicTo(
-            cx - s * 0.3, cy - s * 0.65,
-            cx + s * 0.35, cy - s * 0.5,
-            cx + s * 0.65, cy,
-        )
-        path.cubicTo(
-            cx + s * 0.35, cy + s * 0.5,
-            cx - s * 0.3, cy + s * 0.65,
-            cx - s * 0.7, cy,
-        )
+        path.cubicTo(cx - s * 0.3, cy - s * 0.65, cx + s * 0.35, cy - s * 0.5, cx + s * 0.65, cy)
+        path.cubicTo(cx + s * 0.35, cy + s * 0.5, cx - s * 0.3, cy + s * 0.65, cx - s * 0.7, cy)
         painter.drawPath(path)
-
         tail = QPainterPath()
         tail.moveTo(cx + s * 0.55, cy - s * 0.05)
         tail.lineTo(cx + s * 0.95, cy - s * 0.35)
         tail.moveTo(cx + s * 0.55, cy + s * 0.05)
         tail.lineTo(cx + s * 0.95, cy + s * 0.35)
         painter.drawPath(tail)
-
         painter.setBrush(QBrush(color))
         painter.drawEllipse(QPointF(cx - s * 0.42, cy - s * 0.05), 1.0, 1.0)
-
     elif name == "Capture":
-        painter.drawRoundedRect(
-            QRectF(cx - s * 0.8, cy - s * 0.55, s * 1.6, s * 1.1),
-            2.0, 2.0,
-        )
+        painter.drawRoundedRect(QRectF(cx - s * 0.8, cy - s * 0.55, s * 1.6, s * 1.1), 2.0, 2.0)
         painter.drawEllipse(QPointF(cx, cy), s * 0.32, s * 0.32)
-        painter.drawLine(
-            QPointF(cx - s * 0.28, cy - s * 0.55),
-            QPointF(cx - s * 0.1, cy - s * 0.55),
-        )
-
+        painter.drawLine(QPointF(cx - s * 0.28, cy - s * 0.55), QPointF(cx - s * 0.1, cy - s * 0.55))
     elif name == "Hotkeys":
-        painter.drawRoundedRect(
-            QRectF(cx - s * 0.8, cy - s * 0.6, s * 1.6, s * 1.2),
-            2.5, 2.5,
-        )
+        painter.drawRoundedRect(QRectF(cx - s * 0.8, cy - s * 0.6, s * 1.6, s * 1.2), 2.5, 2.5)
         painter.drawLine(QPointF(cx - s * 0.35, cy), QPointF(cx + s * 0.35, cy))
         painter.drawLine(QPointF(cx, cy - s * 0.28), QPointF(cx, cy + s * 0.28))
-
     painter.restore()
-
 
 def _draw_sidebar_glyph(painter: QPainter, name: str, rect: QRectF, color: QColor) -> None:
     pixmap = _load_svg_silhouette(name, int(rect.width()))
@@ -255,13 +193,9 @@ def _draw_sidebar_glyph(painter: QPainter, name: str, rect: QRectF, color: QColo
         painter.drawPixmap(x, y, result)
         painter.restore()
         return
-
     _draw_painted_glyph(painter, name, rect, color)
 
-
 class SidebarItemDelegate(QStyledItemDelegate):
-    """Paint left-aligned sidebar rows with vertically-centered contents."""
-
     def __init__(self, sidebar: "SidebarListWidget", parent=None) -> None:
         super().__init__(parent)
         self.sidebar = sidebar
@@ -270,14 +204,11 @@ class SidebarItemDelegate(QStyledItemDelegate):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-
         C = ui.FishingUI.C
         row = index.row()
         rect = option.rect
         is_current = row == self.sidebar.currentRow()
         progress = self.sidebar.row_progress(row)
-
-        # Paint selection highlight behind the icon and text.
         pill_rect = self.sidebar.current_pill_rect()
         if not pill_rect.isNull() and rect.intersects(pill_rect):
             painter.save()
@@ -292,71 +223,38 @@ class SidebarItemDelegate(QStyledItemDelegate):
             painter.setPen(QPen(border, 1.2))
             painter.drawRoundedRect(pill_rect, 8, 8)
             painter.restore()
-
         muted = QColor(C["text_muted"])
         subtle = QColor(C["text_subtle"])
         active = QColor("#FFFFFF")
         accent = QColor(C["accent"])
-
-        base_text = (
-            subtle
-            if (row == self.sidebar._hover_row and progress < 0.01)
-            else muted
-        )
+        base_text = subtle if (row == self.sidebar._hover_row and progress < 0.01) else muted
         text_color = _lerp_color(base_text, active, progress)
         icon_color = _lerp_color(base_text, active, progress)
-
         font = QFont(FONT_FAMILY)
         font.setPixelSize(14)
-        font.setWeight(
-            QFont.Weight.Bold
-            if (is_current or progress > 0.5)
-            else QFont.Weight.Normal
-        )
+        font.setWeight(QFont.Weight.Bold if (is_current or progress > 0.5) else QFont.Weight.Normal)
         painter.setFont(font)
         painter.setPen(QPen(text_color))
-
-        # Icons are centered on the row.
         icon_y = rect.center().y() - SIDEBAR_ICON_SIZE / 2.0
-        icon_rect = QRectF(
-            rect.left() + SIDEBAR_ICON_LEFT, icon_y,
-            SIDEBAR_ICON_SIZE, SIDEBAR_ICON_SIZE,
-        )
-
+        icon_rect = QRectF(rect.left() + SIDEBAR_ICON_LEFT, icon_y, SIDEBAR_ICON_SIZE, SIDEBAR_ICON_SIZE)
         scale = 0.92 + 0.08 * progress
         painter.save()
         painter.translate(icon_rect.center())
         painter.scale(scale, scale)
         painter.translate(-icon_rect.center())
-        _draw_sidebar_glyph(
-            painter,
-            str(index.data(Qt.ItemDataRole.DisplayRole)),
-            icon_rect,
-            icon_color,
-        )
+        _draw_sidebar_glyph(painter, str(index.data(Qt.ItemDataRole.DisplayRole)), icon_rect, icon_color)
         painter.restore()
-
-        # Text is vertically centered with an optical offset.
-        text_rect = QRect(
-            rect.left() + SIDEBAR_LABEL_LEFT,
-            rect.top() + SIDEBAR_TEXT_Y_OFFSET,
-            rect.width() - SIDEBAR_LABEL_LEFT - 8,
-            rect.height() - SIDEBAR_TEXT_Y_OFFSET,
-        )
-        painter.drawText(
-            text_rect,
-            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
-            str(index.data(Qt.ItemDataRole.DisplayRole)),
-        )
+        text_rect = QRect(rect.left() + SIDEBAR_LABEL_LEFT, rect.top() + SIDEBAR_TEXT_Y_OFFSET,
+                          rect.width() - SIDEBAR_LABEL_LEFT - 8, rect.height() - SIDEBAR_TEXT_Y_OFFSET)
+        painter.drawText(text_rect, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                         str(index.data(Qt.ItemDataRole.DisplayRole)))
         painter.restore()
 
     def sizeHint(self, option, index: QModelIndex) -> QSize:
         return QSize(SIDEBAR_WIDTH, SIDEBAR_ROW_H)
 
-
 class WrappingLabel(QLabel):
     _MIN_SANE_WIDTH = 40
-
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if self.width() < self._MIN_SANE_WIDTH:
@@ -364,7 +262,6 @@ class WrappingLabel(QLabel):
         h = self.heightForWidth(self.width())
         if h > 0 and self.minimumHeight() != h:
             self.setMinimumHeight(h)
-
 
 class SidebarListWidget(QListWidget):
     def __init__(self, parent=None):
@@ -401,17 +298,11 @@ class SidebarListWidget(QListWidget):
 
     def _target_rect(self, row: int) -> QRect:
         rect = self.visualRect(self.model().index(row, 0))
-        return rect.adjusted(
-            SIDEBAR_PILL_MARGIN_X, SIDEBAR_PILL_MARGIN_Y,
-            -SIDEBAR_PILL_MARGIN_X, -SIDEBAR_PILL_MARGIN_Y,
-        )
+        return rect.adjusted(SIDEBAR_PILL_MARGIN_X, SIDEBAR_PILL_MARGIN_Y,
+                             -SIDEBAR_PILL_MARGIN_X, -SIDEBAR_PILL_MARGIN_Y)
 
     def _on_slide_value(self, t: float) -> None:
-        start = (
-            self._target_rect(self._from_row)
-            if self._from_row >= 0
-            else self._target_rect(self._to_row)
-        )
+        start = self._target_rect(self._from_row) if self._from_row >= 0 else self._target_rect(self._to_row)
         end = self._target_rect(self._to_row)
         x = start.x() + (end.x() - start.x()) * t
         y = start.y() + (end.y() - start.y()) * t
@@ -425,7 +316,6 @@ class SidebarListWidget(QListWidget):
             self._pill_rect = QRect()
             self.viewport().update()
             return
-
         target_rect = self._target_rect(row)
         if not self._pill_rect.isValid():
             self._pill_rect = target_rect
@@ -438,7 +328,6 @@ class SidebarListWidget(QListWidget):
             self._slider_anim.setStartValue(0.0)
             self._slider_anim.setEndValue(1.0)
             self._slider_anim.start()
-
         self.viewport().update()
 
     def resizeEvent(self, event):
@@ -461,13 +350,9 @@ class SidebarListWidget(QListWidget):
             self._hover_row = -1
             self.viewport().update()
 
-
 class BaitPriorityList(QListWidget):
     def dropEvent(self, event):
-        if (
-            self.dropIndicatorPosition()
-            == QAbstractItemView.DropIndicatorPosition.OnViewport
-        ):
+        if self.dropIndicatorPosition() == QAbstractItemView.DropIndicatorPosition.OnViewport:
             event.ignore()
             return
         super().dropEvent(event)
@@ -490,14 +375,18 @@ class SettingsDialog(FadeInDialog):
             layout.activate()
         self.finished.connect(lambda _r: self.settings.flush())
 
+        # Connect to parent's BaitListUpdated signal if available (using getattr to avoid type errors)
+        if parent is not None:
+            signal = getattr(parent, 'BaitListUpdated', None)
+            if signal is not None:
+                signal.connect(self._refresh_bait_list)
+
     def _init_animations(self) -> None:
         self._bait_height_anim = QVariantAnimation(self)
         self._bait_height_anim.setDuration(200)
         self._bait_height_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self._bait_height_anim.valueChanged.connect(
-            lambda h: self.bait_list.setFixedHeight(int(h))
-            if hasattr(self, "bait_list")
-            else None
+            lambda h: self.bait_list.setFixedHeight(int(h)) if hasattr(self, "bait_list") else None
         )
 
     def _build_ui(self) -> None:
@@ -675,15 +564,9 @@ class SettingsDialog(FadeInDialog):
         else:
             self.mode_window.setChecked(True)
 
-        self.mode_auto.toggled.connect(
-            lambda checked: self.settings.capture_mode.set("auto") if checked else None
-        )
-        self.mode_window.toggled.connect(
-            lambda checked: self.settings.capture_mode.set("window") if checked else None
-        )
-        self.mode_monitor.toggled.connect(
-            lambda checked: self.settings.capture_mode.set("monitor") if checked else None
-        )
+        self.mode_auto.toggled.connect(lambda checked: self.settings.capture_mode.set("auto") if checked else None)
+        self.mode_window.toggled.connect(lambda checked: self.settings.capture_mode.set("window") if checked else None)
+        self.mode_monitor.toggled.connect(lambda checked: self.settings.capture_mode.set("monitor") if checked else None)
         mode_row.addWidget(self.mode_auto)
         mode_row.addWidget(self.mode_window)
         mode_row.addWidget(self.mode_monitor)
@@ -698,24 +581,18 @@ class SettingsDialog(FadeInDialog):
             for i, monitor in enumerate(sct.monitors):
                 if i == 0:
                     continue
-                self.monitor_combo.addItem(
-                    f"Monitor {i} ({monitor['width']}x{monitor['height']})",
-                    i,
-                )
+                self.monitor_combo.addItem(f"Monitor {i} ({monitor['width']}x{monitor['height']})", i)
         cur_mon = self.settings.capture_monitor.get()
         if 0 < cur_mon < self.monitor_combo.count() + 1:
             self.monitor_combo.setCurrentIndex(cur_mon - 1)
-        self.monitor_combo.currentIndexChanged.connect(
-            lambda idx: self.settings.capture_monitor.set(idx + 1)
-        )
+        self.monitor_combo.currentIndexChanged.connect(lambda idx: self.settings.capture_monitor.set(idx + 1))
         v.addWidget(self.monitor_combo)
         v.addSpacing(8)
 
         v.addWidget(self._field_label(
             "Auto mode tries Window first, then falls back to Monitor. (recommended)\n"
             "Window mode captures the game client even if obstructed, moved or resized.\n"
-            "Monitor mode captures the whole monitor, so the game must be visible and "
-            "unobstructed at all times."
+            "Monitor mode captures the whole monitor, so the game must be visible and unobstructed at all times."
         ))
         v.addStretch()
         return page
@@ -731,17 +608,15 @@ class SettingsDialog(FadeInDialog):
         v.addWidget(self._divider())
         v.addSpacing(6)
 
-        self.hotkey_game_only = self._checkbox(
-            "Only when game is focused", self.settings.hotkey_game_only,
-        )
+        self.hotkey_game_only = self._checkbox("Only when game is focused", self.settings.hotkey_game_only)
         v.addWidget(self.hotkey_game_only)
         v.addSpacing(8)
 
         is_admin = is_running_as_admin()
         if not is_admin:
             warn = self._field_label(
-                "Administrator mode is required for global hotkeys and window "
-                "capture. Local hotkeys (when app is focused) are still active."
+                "Administrator mode is required for global hotkeys and window capture. "
+                "Local hotkeys (when app is focused) are still active."
             )
             v.addWidget(warn)
             v.addSpacing(8)
@@ -800,25 +675,15 @@ class SettingsDialog(FadeInDialog):
         return cb
 
     def _switch(self, label: str, obs) -> SwitchButton:
-        sw = SwitchButton(
-            label, ui.FishingUI.C,
-            on_toggle=obs.set,
-            object_name="SwitchButton",
-        )
+        sw = SwitchButton(label, ui.FishingUI.C, on_toggle=obs.set, object_name="SwitchButton")
         sw.set_checked(obs.get())
         obs.changed.connect(sw.set_checked)
         return sw
 
     def _browse_exe(self, edit: QLineEdit) -> None:
         cur = self.settings.game_exe_path.get()
-        start_dir = (
-            os.path.dirname(cur)
-            if cur and os.path.isdir(os.path.dirname(cur))
-            else ""
-        )
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Game Executable", start_dir, "Executable (*.exe)",
-        )
+        start_dir = os.path.dirname(cur) if cur and os.path.isdir(os.path.dirname(cur)) else ""
+        path, _ = QFileDialog.getOpenFileName(self, "Select Game Executable", start_dir, "Executable (*.exe)")
         if path and path.lower().endswith(".exe"):
             edit.setText(path)
 
@@ -848,6 +713,10 @@ class SettingsDialog(FadeInDialog):
             self.bait_list.blockSignals(False)
         self._adjust_bait_list_height()
 
+    def _refresh_bait_list(self) -> None:
+        """Called when BaitListUpdated signal is emitted."""
+        self._populate_bait_list()
+
     def _adjust_bait_list_height(self) -> None:
         self.bait_list.doItemsLayout()
         count = self.bait_list.count()
@@ -858,20 +727,13 @@ class SettingsDialog(FadeInDialog):
             if item_h <= 0:
                 item_h = BAIT_LIST_FALLBACK_ITEM_H
             spacing = max(0, self.bait_list.spacing())
-            total_h = (
-                count * item_h
-                + max(0, count - 1) * spacing
-                + CONTAINER_PADDING
-            )
+            total_h = count * item_h + max(0, count - 1) * spacing + CONTAINER_PADDING
             if total_h > BAIT_LIST_MAX_H:
                 self.bait_list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
                 self.bait_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
                 scrollable_h = BAIT_LIST_MAX_H - CONTAINER_PADDING
                 items_in_view = max(1, scrollable_h // (item_h + spacing))
-                view_content_h = (
-                    items_in_view * item_h
-                    + max(0, items_in_view - 1) * spacing
-                )
+                view_content_h = items_in_view * item_h + max(0, items_in_view - 1) * spacing
                 target_h = view_content_h + CONTAINER_PADDING
             else:
                 self.bait_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -901,219 +763,39 @@ class SettingsDialog(FadeInDialog):
     def _apply_style(self) -> None:
         C = ui.FishingUI.C
         self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {C['bg']};
-            }}
-            QListWidget#Sidebar {{
-                background-color: {C['bg']};
-                border: none;
-                border-right: 1px solid {C['border']};
-                outline: none;
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 10pt;
-                padding: 10px 0px;
-            }}
-            QListWidget#Sidebar::item {{
-                background: transparent;
-                border: none;
-                padding: 0px;
-                margin: 0px;
-                outline: none;
-            }}
-            QListWidget#Sidebar::item:selected {{
-                background: transparent;
-                outline: none;
-            }}
-            QListWidget#Sidebar::item:focus {{
-                background: transparent;
-                outline: none;
-            }}
-            QListWidget#BaitPriorityList {{
-                background-color: {C['surface']};
-                border: 1px solid {C['border']};
-                border-radius: 6px;
-                padding: 4px;
-                outline: 0;
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                font-weight: bold;
-            }}
-            QListWidget#BaitPriorityList::item {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                background-color: transparent;
-                margin: 0px;
-            }}
-            QListWidget#BaitPriorityList::item:hover {{
-                background-color: {C['border_hi']};
-            }}
-            QListWidget#BaitPriorityList::item:selected {{
-                background-color: {C['accent_dim']};
-                color: {C['text']};
-            }}
-            QWidget#Content {{
-                background-color: {C['bg']};
-            }}
-            QLabel {{
-                background: transparent;
-                color: {C['text']};
-                font-family: '{ui.FONT_FAMILY}';
-            }}
-            QLabel#SectionTitle {{
-                color: {C['text']};
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 14pt;
-                font-weight: bold;
-                padding-bottom: 4px;
-            }}
-            QLabel#SectionSubtitle {{
-                color: {C['text_muted']};
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                padding-bottom: 8px;
-            }}
-            QLabel#FieldLabel {{
-                color: {C['text_muted']};
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                font-weight: bold;
-                padding-bottom: 4px;
-            }}
-            QLabel#Placeholder {{
-                color: {C['text_subtle']};
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-            }}
-            QFrame#Divider {{
-                background-color: {C['border']};
-                max-height: 1px;
-                min-height: 1px;
-                border: none;
-            }}
-            QLineEdit#PathEdit {{
-                background-color: {C['surface']};
-                color: {C['text']};
-                border: 1px solid {C['border_hi']};
-                border-radius: 6px;
-                padding: 8px 12px;
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                selection-background-color: {C['accent']};
-                selection-color: {C['bg']};
-            }}
-            QLineEdit#PathEdit:focus {{
-                border: 1px solid {C['accent']};
-            }}
-            QPushButton {{
-                background-color: {C['surface_alt']};
-                border: 1px solid {C['border_hi']};
-                border-radius: 6px;
-                padding: 8px 14px;
-                color: {C['text']};
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {C['border_hi']};
-                border: 1px solid {C['accent_muted']};
-            }}
-            QPushButton:pressed {{
-                background-color: {C['accent_dim']};
-                padding-top: 9px;
-                padding-bottom: 7px;
-            }}
-            QPushButton:disabled {{
-                color: {C['text_muted']};
-                background-color: {C['surface']};
-                border: 1px solid {C['border']};
-            }}
-            QPushButton#BrowseBtn {{
-                background-color: {C['surface_alt']};
-                border: 1px solid {C['border_hi']};
-                border-radius: 6px;
-                padding: 8px 14px;
-                color: {C['text']};
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                font-weight: bold;
-            }}
-            QPushButton#BrowseBtn:hover {{
-                background-color: {C['border_hi']};
-                border: 1px solid {C['accent_muted']};
-            }}
-            QPushButton#BrowseBtn:pressed {{
-                padding-top: 9px;
-                padding-bottom: 7px;
-            }}
-            QCheckBox {{
-                color: {C['text']};
-                spacing: 8px;
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                font-weight: bold;
-                background: transparent;
-                padding: 6px 0px;
-            }}
-            QCheckBox::indicator {{
-                width: 16px;
-                height: 16px;
-                border-radius: 4px;
-                border: 1px solid {C['border_hi']};
-                background-color: transparent;
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {C['accent']};
-                border: 1px solid {C['accent']};
-                image: {_CHECK_URL};
-            }}
-            QRadioButton {{
-                color: {C['text']};
-                spacing: 8px;
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                font-weight: bold;
-                background: transparent;
-                padding: 6px 0px;
-            }}
-            QRadioButton::indicator {{
-                width: 16px;
-                height: 16px;
-                border-radius: 8px;
-                border: 1px solid {C['border_hi']};
-                background-color: transparent;
-            }}
-            QRadioButton::indicator:checked {{
-                background-color: {C['accent']};
-                border: 1px solid {C['accent']};
-            }}
-            QComboBox#MonitorCombo {{
-                background-color: {C['surface']};
-                color: {C['text']};
-                border: 1px solid {C['border_hi']};
-                border-radius: 6px;
-                padding: 8px 12px;
-                font-family: '{ui.FONT_FAMILY}';
-                font-size: 9pt;
-                min-width: 200px;
-            }}
-            QComboBox#MonitorCombo::drop-down {{
-                border: none;
-                width: 24px;
-            }}
-            QComboBox#MonitorCombo::down-arrow {{
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 5px solid {C['text_muted']};
-                margin-right: 8px;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {C['surface']};
-                color: {C['text']};
-                selection-background-color: {C['accent_dim']};
-                selection-color: {C['text']};
-                border: 1px solid {C['border_hi']};
-                outline: 0;
-            }}
+            QDialog {{ background-color: {C['bg']}; }}
+            QListWidget#Sidebar {{ background-color: {C['bg']}; border: none; border-right: 1px solid {C['border']}; outline: none; font-family: '{ui.FONT_FAMILY}'; font-size: 10pt; padding: 10px 0px; }}
+            QListWidget#Sidebar::item {{ background: transparent; border: none; padding: 0px; margin: 0px; outline: none; }}
+            QListWidget#Sidebar::item:selected {{ background: transparent; outline: none; }}
+            QListWidget#Sidebar::item:focus {{ background: transparent; outline: none; }}
+            QListWidget#BaitPriorityList {{ background-color: {C['surface']}; border: 1px solid {C['border']}; border-radius: 6px; padding: 4px; outline: 0; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; font-weight: bold; }}
+            QListWidget#BaitPriorityList::item {{ padding: 4px 8px; border-radius: 4px; background-color: transparent; margin: 0px; }}
+            QListWidget#BaitPriorityList::item:hover {{ background-color: {C['border_hi']}; }}
+            QListWidget#BaitPriorityList::item:selected {{ background-color: {C['accent_dim']}; color: {C['text']}; }}
+            QWidget#Content {{ background-color: {C['bg']}; }}
+            QLabel {{ background: transparent; color: {C['text']}; font-family: '{ui.FONT_FAMILY}'; }}
+            QLabel#SectionTitle {{ color: {C['text']}; font-family: '{ui.FONT_FAMILY}'; font-size: 14pt; font-weight: bold; padding-bottom: 4px; }}
+            QLabel#SectionSubtitle {{ color: {C['text_muted']}; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; padding-bottom: 8px; }}
+            QLabel#FieldLabel {{ color: {C['text_muted']}; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; font-weight: bold; padding-bottom: 4px; }}
+            QLabel#Placeholder {{ color: {C['text_subtle']}; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; }}
+            QFrame#Divider {{ background-color: {C['border']}; max-height: 1px; min-height: 1px; border: none; }}
+            QLineEdit#PathEdit {{ background-color: {C['surface']}; color: {C['text']}; border: 1px solid {C['border_hi']}; border-radius: 6px; padding: 8px 12px; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; selection-background-color: {C['accent']}; selection-color: {C['bg']}; }}
+            QLineEdit#PathEdit:focus {{ border: 1px solid {C['accent']}; }}
+            QPushButton {{ background-color: {C['surface_alt']}; border: 1px solid {C['border_hi']}; border-radius: 6px; padding: 8px 14px; color: {C['text']}; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; font-weight: bold; }}
+            QPushButton:hover {{ background-color: {C['border_hi']}; border: 1px solid {C['accent_muted']}; }}
+            QPushButton:pressed {{ background-color: {C['accent_dim']}; padding-top: 9px; padding-bottom: 7px; }}
+            QPushButton:disabled {{ color: {C['text_muted']}; background-color: {C['surface']}; border: 1px solid {C['border']}; }}
+            QPushButton#BrowseBtn {{ background-color: {C['surface_alt']}; border: 1px solid {C['border_hi']}; border-radius: 6px; padding: 8px 14px; color: {C['text']}; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; font-weight: bold; }}
+            QPushButton#BrowseBtn:hover {{ background-color: {C['border_hi']}; border: 1px solid {C['accent_muted']}; }}
+            QPushButton#BrowseBtn:pressed {{ padding-top: 9px; padding-bottom: 7px; }}
+            QCheckBox {{ color: {C['text']}; spacing: 8px; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; font-weight: bold; background: transparent; padding: 6px 0px; }}
+            QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 1px solid {C['border_hi']}; background-color: transparent; }}
+            QCheckBox::indicator:checked {{ background-color: {C['accent']}; border: 1px solid {C['accent']}; image: {_CHECK_URL}; }}
+            QRadioButton {{ color: {C['text']}; spacing: 8px; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; font-weight: bold; background: transparent; padding: 6px 0px; }}
+            QRadioButton::indicator {{ width: 16px; height: 16px; border-radius: 8px; border: 1px solid {C['border_hi']}; background-color: transparent; }}
+            QRadioButton::indicator:checked {{ background-color: {C['accent']}; border: 1px solid {C['accent']}; }}
+            QComboBox#MonitorCombo {{ background-color: {C['surface']}; color: {C['text']}; border: 1px solid {C['border_hi']}; border-radius: 6px; padding: 8px 12px; font-family: '{ui.FONT_FAMILY}'; font-size: 9pt; min-width: 200px; }}
+            QComboBox#MonitorCombo::drop-down {{ border: none; width: 24px; }}
+            QComboBox#MonitorCombo::down-arrow {{ image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid {C['text_muted']}; margin-right: 8px; }}
+            QComboBox QAbstractItemView {{ background-color: {C['surface']}; color: {C['text']}; selection-background-color: {C['accent_dim']}; selection-color: {C['text']}; border: 1px solid {C['border_hi']}; outline: 0; }}
         """)

@@ -2,7 +2,6 @@ PySide6
 mss
 numpy
 psutil
-vgamepad
 requests
-pyinstaller
-pyinstaller-hooks-contrib
+packaging
+vgamepad

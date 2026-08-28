@@ -2,6 +2,8 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[
+        # Path to ViGEmClient.dll from vgamepad installation.
+        # Adjust if your virtual environment is located elsewhere.
         (
             '..\\.venv\\Lib\\site-packages\\vgamepad\\win\\vigem\\client\\x64\\ViGEmClient.dll',
             'vgamepad/win/vigem/client/x64',

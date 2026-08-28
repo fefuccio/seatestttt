@@ -1,12 +1,9 @@
-"""Path resolution for bundled read-only vs writable APPDATA files."""
-
 from __future__ import annotations
 
 import logging
 import os
 import shutil
 import sys
-from typing import List
 
 APP_NAME = "SeaAnglerAssist"
 
@@ -33,6 +30,24 @@ def is_frozen() -> bool:
     )
 
 
+def _find_project_root() -> str:
+    """
+    Walk up from this file's directory until we find a marker (baits.json).
+    This works both when running from source (scripts/ folder) and when
+    the code is packaged.
+    """
+    current = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if os.path.exists(os.path.join(current, "baits.json")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:   # reached filesystem root
+            break
+        current = parent
+    # Fallback: assume we are in a subfolder called 'scripts' and go up one level
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def bundled_root() -> str:
     """
     Resolve the root containing bundled resources.
@@ -46,9 +61,8 @@ def bundled_root() -> str:
     if meipass:
         return meipass
 
-    return os.path.dirname(
-        os.path.abspath(__file__)
-    )
+    # When running from source, find the project root using the marker.
+    return _find_project_root()
 
 
 def bundled_resource(
@@ -61,7 +75,7 @@ def bundled_resource(
 
 
 def writable_dir() -> str:
-    candidates: List[str] = []
+    candidates: list[str] = []
 
     appdata = os.environ.get(
         "APPDATA"

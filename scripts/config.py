@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shutil
+from functools import lru_cache
 from typing import List, Optional
 
 import numpy as np
@@ -16,190 +17,123 @@ logger = logging.getLogger(__name__)
 
 APP_VERSION = "0.0.1"
 
-
 # ---------------------------------------------------------------------------
 # Window / UI
 # ---------------------------------------------------------------------------
-
 WINDOW_W = 480
 WINDOW_H = 420
 DEBUG_WINDOW_H = 720
-
 WINDOW_X_PCT = 0.01
 WINDOW_Y_PCT = 0.99
-
 SIDEBAR_WIDTH = 170
 DROPDOWN_WIDTH = 220
 GEAR_SIZE = 20
-
 BAIT_LIST_MAX_H = 240
 BAIT_LIST_EMPTY_H = 40
 BAIT_LIST_FALLBACK_ITEM_H = 32
 CONTAINER_PADDING = 10
 
-
 # ---------------------------------------------------------------------------
 # Game target
 # ---------------------------------------------------------------------------
-
-DEFAULT_GAME_EXE = (
-    r"C:\Program Files\Neverness To Everness\Client"
-    r"\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe"
-)
-
+DEFAULT_GAME_EXE = ""
 
 def get_target_exe() -> str:
     try:
         from settings import get_settings
-
         path = get_settings().game_exe_path.get()
-
         if path:
             return path
-
     except Exception:
         pass
-
     return DEFAULT_GAME_EXE
-
 
 # ---------------------------------------------------------------------------
 # Timing
 # ---------------------------------------------------------------------------
-
 CAST_WAIT = 4
 CAST_POLL = 0.5
 CAST_POLL_MAX = 20
-
 POST_MINIGAME_WAIT = 1
 POST_RESULT_SETTLE = 0.5
-
 RESULT_POLL = 0.5
 RESULT_POLL_MAX = 20
 RESULT_DISMISS_WAIT = 1
-
 BAR_WAIT = 0.25
 BAR_RETRY_MAX = 10
-
 START_IGNORE_SECS = 0.2
 TAP_DURATION = 0.1
-
 INPUT_WAIT = 0.5
 POST_CAST_SETTLE = 0.5
-
 HOOK_GRACE_SECS = 3.5
 RECOVER_WAIT = 2.0
 FOCUS_SETTLE = 0.2
 
-
 # ---------------------------------------------------------------------------
 # Capture regions
 # ---------------------------------------------------------------------------
+DETECTION_PARAMS = {
+    "bar": {"x_min": 0.30, "x_max": 0.70, "y_min": 0.05, "y_max": 0.10},
+    "line": {"x_min": 0.30, "x_max": 0.70, "y_min": 0.05, "y_max": 0.10},
+    "cast": {"x_min": 0.9, "x_max": 0.95, "y_min": 0.875, "y_max": 0.925},
+    "result": {"x_min": 0.59, "x_max": 0.63, "y_min": 0.05, "y_max": 0.15},
+    "bait_empty": {"x_min": 0.40, "x_max": 0.60, "y_min": 0.47, "y_max": 0.53},
+    "fish_mode": {"x_min": 0.01, "x_max": 0.15, "y_min": 0.01, "y_max": 0.15},
+    "fish_menu": {"x_min": 0.64, "x_max": 0.98, "y_min": 0.50, "y_max": 0.52},
+}
 
-BAR_X_MIN, BAR_X_MAX = 0.30, 0.70
-BAR_Y_MIN, BAR_Y_MAX = 0.05, 0.10
-
-LINE_X_MIN, LINE_X_MAX = 0.30, 0.70
-LINE_Y_MIN, LINE_Y_MAX = 0.05, 0.10
-
-CAST_X_MIN, CAST_X_MAX = 0.9, 0.95
-CAST_Y_MIN, CAST_Y_MAX = 0.875, 0.925
-
-RESULT_X_MIN, RESULT_X_MAX = 0.59, 0.63
-RESULT_Y_MIN, RESULT_Y_MAX = 0.05, 0.15
-
-BAIT_EMPTY_X_MIN = 0.40
-BAIT_EMPTY_X_MAX = 0.60
-BAIT_EMPTY_Y_MIN = 0.47
-BAIT_EMPTY_Y_MAX = 0.53
-
-BAIT_EMPTY_WHITE = np.array([0xFF, 0xFF, 0xFF], dtype=np.int16)
-BAIT_EMPTY_DARK = np.array([0x00, 0x00, 0x00], dtype=np.int16)
-BAIT_EMPTY_TOL= 40
-BAIT_EMPTY_MIN_WHITE_RATIO = 0.15
-BAIT_EMPTY_MIN_DARK_RATIO  = 0.5
-
-
-# ---------------------------------------------------------------------------
-# Debug
-# ---------------------------------------------------------------------------
-
-DEBUG_NO_BAIT_SCREENSHOT = True
-
+BAR_X_MIN, BAR_X_MAX = DETECTION_PARAMS["bar"]["x_min"], DETECTION_PARAMS["bar"]["x_max"]
+BAR_Y_MIN, BAR_Y_MAX = DETECTION_PARAMS["bar"]["y_min"], DETECTION_PARAMS["bar"]["y_max"]
+LINE_X_MIN, LINE_X_MAX = DETECTION_PARAMS["line"]["x_min"], DETECTION_PARAMS["line"]["x_max"]
+LINE_Y_MIN, LINE_Y_MAX = DETECTION_PARAMS["line"]["y_min"], DETECTION_PARAMS["line"]["y_max"]
+CAST_X_MIN, CAST_X_MAX = DETECTION_PARAMS["cast"]["x_min"], DETECTION_PARAMS["cast"]["x_max"]
+CAST_Y_MIN, CAST_Y_MAX = DETECTION_PARAMS["cast"]["y_min"], DETECTION_PARAMS["cast"]["y_max"]
+RESULT_X_MIN, RESULT_X_MAX = DETECTION_PARAMS["result"]["x_min"], DETECTION_PARAMS["result"]["x_max"]
+RESULT_Y_MIN, RESULT_Y_MAX = DETECTION_PARAMS["result"]["y_min"], DETECTION_PARAMS["result"]["y_max"]
+BAIT_EMPTY_X_MIN, BAIT_EMPTY_X_MAX = DETECTION_PARAMS["bait_empty"]["x_min"], DETECTION_PARAMS["bait_empty"]["x_max"]
+BAIT_EMPTY_Y_MIN, BAIT_EMPTY_Y_MAX = DETECTION_PARAMS["bait_empty"]["y_min"], DETECTION_PARAMS["bait_empty"]["y_max"]
+FISH_MODE_X_MIN, FISH_MODE_X_MAX = DETECTION_PARAMS["fish_mode"]["x_min"], DETECTION_PARAMS["fish_mode"]["x_max"]
+FISH_MODE_Y_MIN, FISH_MODE_Y_MAX = DETECTION_PARAMS["fish_mode"]["y_min"], DETECTION_PARAMS["fish_mode"]["y_max"]
+FISH_MENU_X_MIN, FISH_MENU_X_MAX = DETECTION_PARAMS["fish_menu"]["x_min"], DETECTION_PARAMS["fish_menu"]["x_max"]
+FISH_MENU_Y_MIN, FISH_MENU_Y_MAX = DETECTION_PARAMS["fish_menu"]["y_min"], DETECTION_PARAMS["fish_menu"]["y_max"]
 
 # ---------------------------------------------------------------------------
-# Fishing-mode regions (Map + Green Menu logic - unchanged)
+# Detection colors and tolerances
 # ---------------------------------------------------------------------------
-
-# Top-left corner where the minimap is located.
-FISH_MODE_X_MIN = 0.01
-FISH_MODE_X_MAX = 0.15
-
-FISH_MODE_Y_MIN = 0.01
-FISH_MODE_Y_MAX = 0.15
-
-# Player arrow marker color on the minimap.
-FISH_MODE_COLOR = np.array([0xFF, 0xEF, 0xB8], dtype=np.int16)
-FISH_MODE_TOL = 3
-FISH_MODE_MIN_PIXELS = 20
-
-# Fishing menu detection (X 64%-98%, Y 50%-52%)
-FISH_MENU_X_MIN = 0.64
-FISH_MENU_X_MAX = 0.98
-FISH_MENU_Y_MIN = 0.50
-FISH_MENU_Y_MAX = 0.52
-FISH_MENU_TOL = 5
-
-# Rarity colors used for menu detection
-FISH_MENU_GREEN_RGB = np.array([0x21, 0xA2, 0x8F], dtype=np.int16)
-FISH_MENU_BLUE_RGB = np.array([0x3C, 0x69, 0xFF], dtype=np.int16)
-FISH_MENU_PURPLE_RGB = np.array([0xE7, 0x41, 0xBD], dtype=np.int16)
-FISH_MENU_ORANGE_RGB = np.array([0xFF, 0xB6, 0x10], dtype=np.int16)
-
-
-# ---------------------------------------------------------------------------
-# Detection colors
-# ---------------------------------------------------------------------------
-
 BAR_RGB = np.array([0x34, 0xDA, 0xB3], dtype=np.int16)
 LINE_RGB = np.array([0xFD, 0xF9, 0x92], dtype=np.int16)
 CAST_RGB = np.array([0x20, 0x7C, 0xFF], dtype=np.int16)
 RESULT_RGB = np.array([0xB9, 0xE7, 0x04], dtype=np.int16)
 PINK_RGB = np.array([0xFA, 0x46, 0x8E], dtype=np.int16)
 GOLD_RGB = np.array([0xF9, 0xC3, 0x20], dtype=np.int16)
-RED_TEXT_RGB = np.array([0xEB, 0x39, 0x39], dtype=np.int16)
-
-WHITE_THRESHOLD = 230
-WHITE_PERCENT = 0.20
-
-
-# ---------------------------------------------------------------------------
-# Detection tolerances
-# ---------------------------------------------------------------------------
+FISH_MODE_COLOR = np.array([0xFF, 0xEF, 0xB8], dtype=np.int16)
+FISH_MENU_GREEN_RGB = np.array([0x21, 0xA2, 0x8F], dtype=np.int16)
 
 BAR_TOL = 25
 LINE_TOL = 20
 CAST_TOL = 15
 RESULT_TOL = 15
 RESULT_REQUIRED = 20
+FISH_MODE_TOL = 3
+FISH_MODE_MIN_PIXELS = 20
+FISH_MENU_TOL = 5
 
-
-# ---------------------------------------------------------------------------
-# Bait menu
-# ---------------------------------------------------------------------------
+BAIT_EMPTY_WHITE = np.array([0xFF, 0xFF, 0xFF], dtype=np.int16)
+BAIT_EMPTY_DARK = np.array([0x00, 0x00, 0x00], dtype=np.int16)
+BAIT_EMPTY_TOL = 40
+BAIT_EMPTY_MIN_WHITE_RATIO = 0.15
+BAIT_EMPTY_MIN_DARK_RATIO = 0.5
 
 BAIT_COLOR_TOL = 30
+CURSOR_MIN_PIXELS = 20
 BAIT_MENU_OPEN_SETTLE = 0.6
 BAIT_INPUT_WAIT = 0.1
 BAIT_SWITCH_WAIT = 0.2
-CURSOR_MIN_PIXELS = 20
 BAIT_MISS_CONFIRM_FRAMES = 3
-
 
 # ---------------------------------------------------------------------------
 # Reeling
 # ---------------------------------------------------------------------------
-
 REEL_SPEED_PX_PER_MS = 0.322
 REEL_CENTER_DEADZONE = 8
 REEL_COAST_ZONE = 16
@@ -208,11 +142,9 @@ REEL_MIN_HOLD_TIME = 0.030
 REEL_SAFETY_FACTOR = 0.65
 REEL_POLL_DELAY = 0.025
 
-
 # ---------------------------------------------------------------------------
 # Controller input
 # ---------------------------------------------------------------------------
-
 KEY_LEFT = "L2"
 KEY_RIGHT = "R2"
 KEY_CAST = "CROSS"
@@ -227,34 +159,24 @@ BOT_KEYS = {
     KEY_MENU, KEY_CANCEL, KEY_DPAD_L, KEY_DPAD_R,
 }
 
-
 # ---------------------------------------------------------------------------
 # Rarity
 # ---------------------------------------------------------------------------
-
 RARITY_COLORS = {
     "green": "#21A28F",
     "blue": "#3C69FF",
     "purple": "#E741BD",
     "orange": "#FFB610",
 }
-
-RARITY_ORDER = [
-    "green", "blue", "purple", "orange",
-]
-
+RARITY_ORDER = ["green", "blue", "purple", "orange"]
 
 # ---------------------------------------------------------------------------
-# Baits
+# Baits (cached with lru_cache)
 # ---------------------------------------------------------------------------
-
-_BAITS_CACHE: Optional[List[dict]] = None
-
-
+@lru_cache(maxsize=1)
 def _load_baits() -> List[dict]:
     bundled_path = bundled_resource("baits.json")
     writable = writable_path("baits.json")
-
     try:
         with open(bundled_path, "r", encoding="utf-8") as f:
             bundled_data = json.load(f)
@@ -282,10 +204,8 @@ def _load_baits() -> List[dict]:
     try:
         with open(writable, "r", encoding="utf-8") as fh:
             data = json.load(fh)
-
         if isinstance(data, list) and data:
             return data
-
     except Exception as exc:
         logger.warning(f"Failed to load baits from {writable}: {exc}")
 
@@ -294,11 +214,15 @@ def _load_baits() -> List[dict]:
         {"name": "Mixed Grain Bait", "rarity": "green"},
     ]
 
-
 def get_baits() -> List[dict]:
-    global _BAITS_CACHE
+    return _load_baits()
 
-    if _BAITS_CACHE is None:
-        _BAITS_CACHE = _load_baits()
+# ---------------------------------------------------------------------------
+# Debug screenshots
+# ---------------------------------------------------------------------------
+DEBUG_NO_BAIT_SCREENSHOT = False
 
-    return _BAITS_CACHE
+# ---------------------------------------------------------------------------
+# Controller fallback setting
+# ---------------------------------------------------------------------------
+ALLOW_CONTROLLER_FALLBACK = True   # can be overridden by settings

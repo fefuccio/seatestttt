@@ -1,3 +1,4 @@
 nuitka
 zstandard
 ordered-set
+ruff

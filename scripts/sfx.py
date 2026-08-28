@@ -1,19 +1,14 @@
-"""
-UI sound-effects helper for Sea Angler Assist.
-"""
-
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import os
 import threading
 import time
+import winsound
 from pathlib import Path
 
-import winsound
-
 from paths import bundled_resource
-
 
 _SOUNDS_DIR = bundled_resource(
     "sounds"
@@ -49,7 +44,7 @@ def _close_after_playback(
         + 0.1
     )
 
-    try:
+    with contextlib.suppress(Exception):
         ctypes.windll.winmm.mciSendStringW(
             f"close {alias}",
             None,
@@ -57,8 +52,6 @@ def _close_after_playback(
             0,
         )
 
-    except Exception:
-        pass
 
 
 def _play_mp3_async(

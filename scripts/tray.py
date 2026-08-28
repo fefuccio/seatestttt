@@ -1,5 +1,3 @@
-"""System tray integration for Sea Angler Assist."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import (

@@ -1,14 +1,9 @@
-"""Application-wide QSS definitions extracted for clarity."""
-
 from __future__ import annotations
-
-from typing import Dict
 
 FONT_FAMILY = "Segoe UI"
 
-
 def get_app_qss(
-    C: Dict[str, str],
+    C: dict[str, str],
     font_family: str,
     font_family_mono: str,
     check_url: str,

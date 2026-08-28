@@ -1,8 +1,6 @@
-"""Qt-backed observable primitives — no UI coupling."""
-
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any
 
 from PySide6.QtCore import (
     QObject,
@@ -108,9 +106,7 @@ class ObservableList(Observable):
 
     def __init__(
         self,
-        value: Optional[
-            List[Any]
-        ] = None,
+        value: list[Any] | None = None,
     ) -> None:
         super().__init__(
             list(
@@ -118,14 +114,14 @@ class ObservableList(Observable):
             )
         )
 
-    def get(self) -> List[Any]:
+    def get(self) -> list[Any]:
         return list(
             self._value
         )
 
     def set(
         self,
-        value: List[Any],
+        value: list[Any],
     ) -> None:
         new_list = list(value)
 
